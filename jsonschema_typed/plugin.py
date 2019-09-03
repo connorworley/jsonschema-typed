@@ -1,9 +1,11 @@
 """Provides :class:`.JSONSchemaPlugin`."""
 
+import importlib
 import os
 import warnings
 from mypy.plugin import Plugin, AnalyzeTypeContext, DynamicClassDefContext
 import json
+import typing
 from typing import Optional, Callable, Any, Union, List, Set, Dict
 import copy
 
@@ -17,6 +19,9 @@ import mypy_extensions
 from jsonschema.validators import validator_for
 from jsonschema import RefResolver
 from jsonschema.validators import _id_of as id_of
+
+from jsonschema_typed.types import JSONSchema
+from jsonschema_typed.types import JSONSchemaBase
 
 ISSUE_URL = 'https://github.com/erickpeirson/jsonschema-typed'
 """Raise issues here."""
@@ -336,19 +341,38 @@ class APIv7(APIv6):
 class JSONSchemaPlugin(Plugin):
     """Provides support for the JSON Schema as TypedDict."""
 
-    JSONSchema = 'jsonschema_typed.types.JSONSchema'
-    JSONSchemaBase = 'jsonschema_typed.types.JSONSchemaBase'
+    def resolve_name(self, fullname: str) -> Any:
+        original_type_checking = typing.TYPE_CHECKING
+        typing.TYPE_CHECKING = True
+        try:
+            parts = fullname.split('.')
+            if len(parts) <= 1:
+                raise ImportError(f'{fullname} is not a fully qualified name')
+            module_path, name = '.'.join(parts[:-1]), parts[-1]
+            module = importlib.import_module(module_path)
+            return getattr(module, name)
+        finally:
+            typing.TYPE_CHECKING = original_type_checking
 
     def get_type_analyze_hook(self, fullname: str) -> Optional[Callable]:
         """Produce an analyzer callback if a JSONSchema annotation is found."""
-        if fullname == self.JSONSchema:
+        # For some reason, comparing against typing.Union causes a recursion error
+        try:
+            resolved = self.resolve_name(fullname)
+        except (ImportError, AttributeError):
+            return
+        if (not hasattr(resolved, '__class__') or resolved.__class__.__name__ != '_Union') \
+           and resolved == JSONSchema:
             def callback(ctx: AnalyzeTypeContext) -> TypedDictType:
                 """Generate annotations from a JSON Schema."""
                 if not ctx.type.args:
                     return ctx.type
                 schema_path, = ctx.type.args
-                schema_path = os.path.abspath(schema_path.literal_value)
-                schema = self._load_schema(schema_path)
+                try:
+                    schema = self.resolve_name(schema_path.original_str_expr)
+                except (ImportError, AttributeError):
+                    schema_path = os.path.abspath(schema_path.original_str_expr)
+                    schema = self._load_schema(schema_path)
                 make_type = TypeMaker(schema_path, schema)
                 _type = make_type(ctx)
                 return _type
@@ -356,7 +380,12 @@ class JSONSchemaPlugin(Plugin):
 
     def get_dynamic_class_hook(self, fullname: str) -> Optional[Callable]:
         """Add support for ``JSONSchemaBase``."""
-        if fullname == self.JSONSchemaBase:
+        try:
+            resolved = self.resolve_name(fullname)
+        except (ImportError, AttributeError):
+            return
+        if (not hasattr(resolved, '__class__') or resolved.__class__.__name__ != '_Union') \
+           and resolved == JSONSchemaBase:
             return self.dyn_class_hook
         return None
 
@@ -371,8 +400,11 @@ class JSONSchemaPlugin(Plugin):
     def dyn_class_hook(self, ctx: DynamicClassDefContext) -> TypedDictType:
         """Generate annotations from a JSON Schema."""
         schema_path, = ctx.call.args
-        schema_path = os.path.abspath(schema_path.value)
-        schema = self._load_schema(schema_path)
+        try:
+            schema = self.resolve_name(schema_path.value)
+        except (ImportError, AttributeError):
+            schema_path = os.path.abspath(schema_path.value)
+            schema = self._load_schema(schema_path)
         make_type = TypeMaker(schema_path, schema)
         td_type = make_type(ctx)
 
