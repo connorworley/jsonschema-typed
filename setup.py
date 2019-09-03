@@ -9,13 +9,13 @@ with open(os.path.join(dir, 'README.md')) as f:
     description = f.read()
 
 setup(
-    name='jsonschema-typed',
-    author='Erick Peirson',
-    author_email='erick.peirson@gmail.com',
-    url='https://github.com/erickpeirson/jsonschema-typed',
+    name='jsonschema-typed2',
+    author='Connor Worley',
+    author_email='connorbworley@gmail.com',
+    url='https://github.com/connorworley/jsonschema-typed',
     python_requires='~=3.6',    # I think?
     license='MIT',
-    version='0.1.1',
+    version='0.1.0',
     packages=['jsonschema_typed'],
     zip_safe=False,
     install_requires=[
