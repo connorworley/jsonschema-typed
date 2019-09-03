@@ -15,7 +15,7 @@ setup(
     url='https://github.com/erickpeirson/jsonschema-typed',
     python_requires='~=3.6',    # I think?
     license='MIT',
-    version='0.1.0',
+    version='0.1.1',
     packages=['jsonschema_typed'],
     zip_safe=False,
     install_requires=[
