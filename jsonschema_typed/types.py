@@ -8,6 +8,6 @@ class JSONSchema(dict):
     """Placeholder for JSON schema TypedDict."""
 
 
-def JSONSchemaBase(schema_path: str) -> Type[dict]:
+def JSONSchemaBase(schema_path: str, schema_ref: str = '#/') -> Type[dict]:
     """Generate a base class for JSON-schema powered TypedDicts."""
     return dict
