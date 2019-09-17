@@ -391,14 +391,18 @@ class JSONSchemaPlugin(Plugin):
                 """Generate annotations from a JSON Schema."""
                 if not ctx.type.args:
                     return ctx.type
-                schema_path, = ctx.type.args
+                schema_path = ctx.type.args[0]
+                if len(ctx.type.args) > 1:
+                    schema_ref = ctx.type.args[1].original_str_expr
+                else:
+                    schema_ref = '#/'
                 try:
                     schema = self.resolve_name(schema_path.original_str_expr)
                 except (ImportError, AttributeError):
                     schema_path = os.path.abspath(schema_path.original_str_expr)
                     schema = self._load_schema(schema_path)
                 make_type = TypeMaker(schema_path, schema)
-                _type = make_type(ctx)
+                _type = make_type(ctx, schema_ref)
                 return _type
             return callback
 
@@ -423,28 +427,35 @@ class JSONSchemaPlugin(Plugin):
 
     def dyn_class_hook(self, ctx: DynamicClassDefContext) -> TypedDictType:
         """Generate annotations from a JSON Schema."""
-        schema_path, = ctx.call.args
+        schema_path = ctx.call.args[0]
+        if len(ctx.call.args) > 1:
+            schema_ref = ctx.call.args[1].value
+        else:
+            schema_ref = '#/'
         try:
             schema = self.resolve_name(schema_path.value)
         except (ImportError, AttributeError):
             schema_path = os.path.abspath(schema_path.value)
             schema = self._load_schema(schema_path)
         make_type = TypeMaker(schema_path, schema)
-        td_type = make_type(ctx)
+        td_type = make_type(ctx, schema_ref)
 
         class_def = ClassDef(ctx.name, Block([]))
         class_def.fullname = ctx.api.qualified_name(ctx.name)
         info = TypeInfo(SymbolTable(), class_def, ctx.api.cur_mod_id)
-        info.typeddict_type = td_type
+        if isinstance(td_type, TypedDictType):
+            info.typeddict_type = td_type
+            base_type = named_builtin_type(ctx, 'dict')
+        else:
+            base_type = td_type
 
-        dict_type = named_builtin_type(ctx, 'dict')
-        mro = dict_type.type.mro
+        mro = base_type.type.mro
         if not mro:
-            mro = [dict_type.type, named_builtin_type(ctx, 'object').type]
+            mro = [base_type.type, named_builtin_type(ctx, 'object').type]
 
         class_def.info = info
         info.mro = mro
-        info.bases = [dict_type]
+        info.bases = [base_type]
         ctx.api.add_symbol_table_node(ctx.name, SymbolTableNode(GDEF, info))
 
 
@@ -465,9 +476,14 @@ class TypeMaker:
     def _sanitize_name(self, name: str) -> str:
         return name.replace('-', ' ').title().replace(' ', '')
 
-    def __call__(self, ctx: AnalyzeTypeContext) -> Type:
+    def __call__(self, ctx: AnalyzeTypeContext, schema_ref: str) -> Type:
         """Generate the appropriate types for this schema."""
-        return self.api.get_type(ctx, self.schema, outer=True)
+        _, subschema = self.resolver.resolve(schema_ref)
+        if subschema == self.schema:
+            outer = True
+        else:
+            outer = False
+        return self.api.get_type(ctx, subschema, outer=outer)
 
 
 def plugin(version: str):
