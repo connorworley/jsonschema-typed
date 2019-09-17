@@ -164,7 +164,7 @@ class APIv4(API):
 
         if pattern_properties is not None:
             if properties is not None:
-                raise NotImplmenetedErorr(
+                raise NotImplementedError(
                     'using `properties` in combination with `patternProperties`'
                     ' is not supported'
                 )

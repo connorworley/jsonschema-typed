@@ -96,3 +96,22 @@ def test_pattern_properties_multiple(mock_analyze_context):
             ]),
         ],
     )
+
+
+def test_pattern_properties_error(mock_analyze_context):
+    schema = {
+        'type': 'object',
+        'properties': {
+            'foo': {
+                'type': 'boolean',
+            },
+        },
+        'patternProperties': {
+            '.*': {
+                'type': 'integer',
+            },
+        },
+    }
+    resolver = RefResolver.from_schema(schema)
+    with pytest.raises(NotImplementedError):
+        plugin.APIv4(resolver, '').get_type(mock_analyze_context, schema, outer=True)
