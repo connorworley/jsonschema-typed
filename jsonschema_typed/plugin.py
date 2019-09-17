@@ -160,6 +160,27 @@ class APIv4(API):
                outer: bool = False, **kwargs) -> Type:
         """Generate an annotation for an object, usually a TypedDict."""
         properties = schema.get('properties')
+        pattern_properties = schema.get('patternProperties')
+
+        if pattern_properties is not None:
+            if properties is not None:
+                raise NotImplementedError(
+                    'using `properties` in combination with `patternProperties`'
+                    ' is not supported'
+                )
+            # If we have pattern properties, we want Dict[str, Union[...]]
+            # where ... is the types of all patternProperties subschemas
+            return named_builtin_type(
+                ctx,
+                'dict',
+                [
+                    named_builtin_type(ctx, 'str'),
+                    UnionType([
+                        self.get_type(ctx, subschema)
+                        for subschema in pattern_properties.values()
+                    ]),
+                ],
+            )
 
         if properties is None:
             return named_builtin_type(ctx, 'dict')
@@ -286,6 +307,9 @@ class APIv4(API):
         warnings.warn('`default` keyword not supported; but see: '
                       'https://github.com/python/mypy/issues/6131')
         return None
+
+    def null(self, ctx: AnalyzeTypeContext, *args, **kwargs):
+        return NoneTyp()
 
     def _basic_new_typeinfo(self, ctx: AnalyzeTypeContext, name: str,
                             basetype_or_fallback: Instance) -> TypeInfo:
@@ -459,8 +483,8 @@ def named_builtin_type(ctx: Union[AnalyzeTypeContext, DynamicClassDefContext],
     """
     For some reason (probably a good one) these APIs expect different names.
     """
-    if type(ctx) is AnalyzeTypeContext:
+    if isinstance(ctx, AnalyzeTypeContext):
         mod = 'builtins'
-    elif type(ctx) is DynamicClassDefContext:
+    elif isinstance(ctx, DynamicClassDefContext):
         mod = '__builtins__'
     return ctx.api.named_type(f'{mod}.{name}', *args, **kwargs)
