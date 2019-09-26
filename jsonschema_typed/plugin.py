@@ -11,7 +11,7 @@ import copy
 
 from collections import OrderedDict
 from mypy.types import TypedDictType, Instance, UnionType, LiteralType, \
-    PartialType, AnyType, TypeOfAny, NoneTyp, UnboundType, ForwardRef, Type
+    PartialType, AnyType, TypeOfAny, NoneTyp, UnboundType, Type
 from mypy.nodes import TypeInfo, ClassDef, Block, SymbolTable, Var, \
     SymbolTableNode, GDEF
 from mypy import semanal_typeddict
@@ -260,16 +260,6 @@ class APIv4(API):
     def ref(self, ctx: AnalyzeTypeContext, ref: str, **kwargs):
         """Handle a `$ref`."""
         if ref == '#':      # Self ref.
-            # Per @ilevkivskyi:
-            #
-            # > You should never use ForwardRef manually
-            # > Also it is deprecated and will be removed soon
-            # > Support for recursive types is limited to proper classes
-            # > currently
-            #
-            # forward_ref = ForwardRef(UnboundType(self.outer_name))
-            # self.forward_refs.append(forward_ref)
-            # return forward_ref
             warnings.warn('Forward references may not be supported; see'
                           ' https://github.com/python/mypy/issues/731')
             return self.object(ctx, {})
